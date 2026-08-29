@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+pipeline/cache/
+node_modules/
+app/dist/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.serve/
+tools/screenshots/
+.pytest_cache/
