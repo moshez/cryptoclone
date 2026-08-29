@@ -7,12 +7,14 @@ interface Props {
   level: Level;
   state: LevelState;
   selected: number | null;
+  /** A rejected wrong entry, shown briefly in its cell before vanishing. */
+  errorFlash: { index: number; letter: string } | null;
   onSelect: (index: number) => void;
 }
 
 /** The ciphertext as words of cells; words wrap as units so no word breaks
  * across lines. Punctuation between words is rendered inline. */
-export function Grid({ level, state, selected, onSelect }: Props) {
+export function Grid({ level, state, selected, errorFlash, onSelect }: Props) {
   const spans = wordSpans(level.solution);
   const pieces: JSX.Element[] = [];
   let cursor = 0;
@@ -35,6 +37,7 @@ export function Grid({ level, state, selected, onSelect }: Props) {
               state={state}
               index={i}
               selected={selected}
+              errorFlash={errorFlash}
               onSelect={onSelect}
             />
           );
@@ -59,12 +62,20 @@ export function Grid({ level, state, selected, onSelect }: Props) {
   );
 }
 
-function Cell({ level, state, index, selected, onSelect }: Props & { index: number }) {
+function Cell({
+  level,
+  state,
+  index,
+  selected,
+  errorFlash,
+  onSelect,
+}: Props & { index: number }) {
   const num = level.cipher[index];
   const locked = isCellLocked(level, state, index);
   const justUnlocked = state.unlocked.includes(index);
   const revealed = isRevealedCell(level, index);
-  const guess = locked ? '' : (state.assignments[index] ?? '');
+  const flash = !locked && errorFlash?.index === index ? errorFlash.letter : null;
+  const guess = locked ? '' : (state.assignments[index] ?? flash ?? '');
   const isSelected = selected === index;
   const sameSymbol = !locked && selected !== null && level.cipher[selected] === num;
   const classes = [
@@ -74,6 +85,7 @@ function Cell({ level, state, index, selected, onSelect }: Props & { index: numb
     revealed ? 'cell-revealed' : '',
     isSelected ? 'cell-selected' : '',
     sameSymbol && !isSelected ? 'cell-same' : '',
+    flash !== null ? 'cell-error' : '',
   ]
     .filter(Boolean)
     .join(' ');

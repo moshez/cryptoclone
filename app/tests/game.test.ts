@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_ERRORS,
   assign,
-  clearCell,
   completedLetters,
   initialState,
   isCellLocked,
@@ -53,12 +52,12 @@ describe('assignment', () => {
     expect(state.completed).toBe(true);
   });
 
-  it('wrong entry sticks in its cell but counts an error', () => {
+  it('wrong entry counts an error but is undone: it never sticks', () => {
     const level = makeLevel();
     const r = assign(level, initialState(level), 1, 'Z');
     expect(r.wasError).toBe(true);
     expect(r.state.errors).toBe(1);
-    expect(r.state.assignments[1]).toBe('Z');
+    expect(r.state.assignments[1]).toBeUndefined();
     expect(r.state.completed).toBe(false);
   });
 
@@ -69,6 +68,7 @@ describe('assignment', () => {
       state = assign(level, state, 1, letter).state;
     }
     expect(state.errors).toBe(2);
+    expect(state.assignments[1]).toBeUndefined();
     const r = assign(level, state, 3, 'W');
     expect(r.didReset).toBe(true);
     expect(r.state.errors).toBe(0);
@@ -76,22 +76,21 @@ describe('assignment', () => {
     expect(MAX_ERRORS).toBe(3);
   });
 
-  it('revealed cells reject entry and clearing', () => {
+  it('revealed cells reject entry', () => {
     const level = makeLevel();
     const state = initialState(level);
     const r = assign(level, state, 0, 'Z');
     expect(r.state).toBe(state);
     expect(r.wasError).toBe(false);
-    expect(clearCell(level, state, 0).assignments[0]).toBe('A');
   });
 
-  it('clear removes only the one cell', () => {
+  it('a filled cell is final: further entry is rejected without an error', () => {
     const level = makeLevel();
-    let state = assign(level, initialState(level), 1, 'B').state;
-    state = assign(level, state, 3, 'B').state;
-    state = clearCell(level, state, 1);
-    expect(state.assignments[1]).toBeUndefined();
-    expect(state.assignments[3]).toBe('B');
+    const { state } = assign(level, initialState(level), 1, 'B');
+    const r = assign(level, state, 1, 'Z');
+    expect(r.state).toBe(state);
+    expect(r.wasError).toBe(false);
+    expect(r.state.assignments[1]).toBe('B');
   });
 
   it('reset returns to the initial presentation', () => {
@@ -144,9 +143,8 @@ describe('locked cells', () => {
     });
     let state = withUnlocks(harder, initialState(harder));
     expect(isCellLocked(harder, state, 0)).toBe(true);
-    state = assign(harder, state, 1, 'X').state; // wrong neighbour fill
+    state = assign(harder, state, 1, 'X').state; // wrong fill: undone, no unlock
     expect(isCellLocked(harder, state, 0)).toBe(true);
-    state = clearCell(harder, state, 1);
     state = assign(harder, state, 1, 'A').state; // correct
     expect(isCellLocked(harder, state, 0)).toBe(false);
   });

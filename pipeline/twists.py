@@ -17,8 +17,9 @@ import random
 import string
 from dataclasses import dataclass, field
 
-# The progression is tuned across this many levels; corpora shorter than
-# the horizon simply stop earlier along the same (slow) ramp.
+# The progression is tuned across this many levels, and the corpus always
+# emits the full horizon: with fewer distinct sentences than levels the
+# sentences cycle, each repeat re-ciphered and re-hinted for its level id.
 HORIZON = 1000
 
 # Fraction of the level's distinct letters left UNhinted, from the first

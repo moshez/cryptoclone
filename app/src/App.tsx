@@ -3,11 +3,9 @@ import { LevelStore, fetchManifest } from './data';
 import {
   MAX_ERRORS,
   assign,
-  clearCell,
   completedLetters,
   initialState,
   isCellLocked,
-  isRevealedCell,
   resetLevel,
   withUnlocks,
   type LevelState,
@@ -28,6 +26,9 @@ export default function App() {
   const [state, setState] = useState<LevelState | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [shake, setShake] = useState(false);
+  /** Transient wrong entry: shown in its cell for a moment, never stored. */
+  const [errorFlash, setErrorFlash] = useState<{ index: number; letter: string } | null>(null);
+  const flashNonce = useRef(0);
   const [error, setError] = useState<string | null>(null);
   const progress = useRef<ReturnType<typeof loadProgress> | null>(null);
 
@@ -54,6 +55,7 @@ export default function App() {
         const st = saved ? withUnlocks(lv, saved) : withUnlocks(lv, initialState(lv));
         setLevel(lv);
         setState(st);
+        setErrorFlash(null);
         setSelected(firstOpenCell(lv, st));
       })
       .catch((e: unknown) => {
@@ -85,25 +87,24 @@ export default function App() {
       if (!level || !state || selected === null || state.completed) return;
       const num = level.cipher[selected];
       if (num === -1 || isCellLocked(level, state, selected)) return;
-      if (isRevealedCell(level, selected)) return;
+      if (state.assignments[selected] !== undefined) return; // filled cells are final
       const result = assign(level, state, selected, letter);
       applyState(result.state);
       if (result.wasError) {
+        // Show the wrong letter in its cell for a moment, then undo it.
+        const nonce = ++flashNonce.current;
+        setErrorFlash({ index: selected, letter });
         setShake(true);
-        setTimeout(() => setShake(false), 400);
-      }
-      if (!result.didReset && !result.wasError) {
+        setTimeout(() => {
+          setShake(false);
+          if (flashNonce.current === nonce) setErrorFlash(null);
+        }, 400);
+      } else {
         setSelected(nextOpenCell(level, result.state, selected));
       }
     },
     [level, state, selected, applyState],
   );
-
-  const onClear = useCallback(() => {
-    if (!level || !state || selected === null) return;
-    if (level.cipher[selected] === -1) return;
-    applyState(clearCell(level, state, selected));
-  }, [level, state, selected, applyState]);
 
   const onReset = useCallback(() => {
     if (!level) return;
@@ -116,11 +117,10 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (/^[a-zA-Z]$/.test(e.key)) onLetter(e.key.toUpperCase());
-      else if (e.key === 'Backspace' || e.key === 'Delete') onClear();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onLetter, onClear]);
+  }, [onLetter]);
 
   const gotoLevel = useCallback(
     (id: number) => {
@@ -159,7 +159,7 @@ export default function App() {
     selected !== null &&
     (level.cipher[selected] === -1 ||
       isCellLocked(level, state, selected) ||
-      isRevealedCell(level, selected));
+      state.assignments[selected] !== undefined);
 
   return (
     <div className={`app${shake ? ' shake' : ''}`}>
@@ -215,6 +215,7 @@ export default function App() {
           level={level}
           state={state}
           selected={selected}
+          errorFlash={errorFlash}
           onSelect={(i) => {
             if (level.cipher[i] !== -1 && !isCellLocked(level, state, i)) setSelected(i);
           }}
@@ -233,13 +234,7 @@ export default function App() {
           doneLetters={doneLetters}
           disabled={selected === null || lockedForKeyboard}
           onLetter={onLetter}
-          onClear={onClear}
           onReset={onReset}
-          clearDisabled={
-            selected === null ||
-            level.cipher[selected] === -1 ||
-            isRevealedCell(level, selected)
-          }
         />
       )}
 

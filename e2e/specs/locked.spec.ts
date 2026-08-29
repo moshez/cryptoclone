@@ -39,16 +39,16 @@ test('a locked cell shows no number until its neighbour is correctly filled', as
   await expect(lockedCell.locator('.cell-num')).toHaveText('');
   await expect(lockedCell).toHaveClass(/cell-locked/);
 
-  // Fill the neighbour with a WRONG letter first: still locked.
+  // Enter a WRONG letter on the neighbour first: rejected, still locked.
   const correct = level.solution[neighbour];
   const wrong = 'QJXZK'.split('').find((l) => l !== correct)!;
   await page.getByTestId(`cell-${neighbour}`).click();
   await page.getByTestId(`key-${wrong}`).click();
   await expect(lockedCell.locator('.cell-num')).toHaveText('');
+  // The wrong entry is undone, so the cell is fillable again.
+  await expect(page.getByTestId(`cell-${neighbour}`).locator('.cell-letter')).toHaveText('');
 
   // Correct the neighbour: the number appears.
-  await page.getByTestId(`cell-${neighbour}`).click();
-  await page.getByTestId('key-clear').click();
   await page.getByTestId(`cell-${neighbour}`).click();
   await page.getByTestId(`key-${correct}`).click();
   await expect(lockedCell.locator('.cell-num')).toHaveText(String(level.cipher[locked]));
