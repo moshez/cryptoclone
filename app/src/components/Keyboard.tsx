@@ -1,8 +1,8 @@
 const ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
 
 interface Props {
-  usedLetters: Set<string>;
-  revealedLetters: Set<string>;
+  /** Letters the player is finished with (every cell needing them filled). */
+  doneLetters: Set<string>;
   disabled: boolean;
   clearDisabled: boolean;
   onLetter: (letter: string) => void;
@@ -11,8 +11,7 @@ interface Props {
 }
 
 export function Keyboard({
-  usedLetters,
-  revealedLetters,
+  doneLetters,
   disabled,
   clearDisabled,
   onLetter,
@@ -35,15 +34,14 @@ export function Keyboard({
             </button>
           )}
           {row.split('').map((letter) => {
-            const used = usedLetters.has(letter);
-            const revealed = revealedLetters.has(letter);
+            const done = doneLetters.has(letter);
             return (
               <button
                 type="button"
                 key={letter}
-                className={`key${used ? ' key-used' : ''}${revealed ? ' key-revealed' : ''}`}
+                className={`key${done ? ' key-used' : ''}`}
                 data-testid={`key-${letter}`}
-                disabled={disabled || revealed}
+                disabled={disabled}
                 onClick={() => onLetter(letter)}
               >
                 {letter}

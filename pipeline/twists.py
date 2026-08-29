@@ -1,5 +1,14 @@
-"""Difficulty presentation: cipher numbering, revealed mappings, and locked
-cells, all derived deterministically from (levelId, tier)."""
+"""Difficulty presentation: cipher numbering, revealed cells, and locked
+cells, all derived deterministically from (levelId, tier).
+
+Hints are per-cell, not per-letter: a hinted letter gets exactly ONE of its
+occurrences pre-filled, and the player fills the remaining occurrences of
+that letter by hand (a known-plaintext attack: nothing is ever auto-filled
+for them). Progression is therefore about how many letters get that single
+pre-filled cell, and it decays slowly across a 1000-level horizon: early
+levels hint all but one letter (mostly mechanical filling), the last
+levels hint nothing.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +17,30 @@ import random
 import string
 from dataclasses import dataclass, field
 
-REVEAL_COUNTS = {1: 8, 2: 5, 3: 3, 4: 1, 5: 0}
+# The progression is tuned across this many levels; corpora shorter than
+# the horizon simply stop earlier along the same (slow) ramp.
+HORIZON = 1000
+
+# Fraction of the level's distinct letters left UNhinted, from the first
+# level (almost everything hinted) to the horizon (nothing hinted).
+UNHINTED_START = 0.08
+
 LOCKED_COUNTS = {1: 0, 2: 0, 3: 2, 4: 4, 5: 6}
 MAX_PLACEMENT_ATTEMPTS = 50
+
+
+def progress_frac(position: int) -> float:
+    """0.0 at the first level, 1.0 at the horizon, clamped beyond it."""
+    return min(max(position, 0), HORIZON - 1) / (HORIZON - 1)
+
+
+def tier_for(frac: float) -> int:
+    return 1 + min(4, int(frac * 5))
+
+
+def assign_tier(position: int) -> int:
+    """Tier ramps with absolute position along the 1000-level horizon."""
+    return tier_for(progress_frac(position))
 
 
 def rng_for(level_id: int, tier: int, purpose: str) -> random.Random:
@@ -18,24 +48,10 @@ def rng_for(level_id: int, tier: int, purpose: str) -> random.Random:
     return random.Random(int.from_bytes(digest[:8], "big"))
 
 
-def assign_tier(position: int, total: int) -> int:
-    """Tier ramps with progression through the level list."""
-    frac = position / max(total, 1)
-    if frac < 0.08:
-        return 1
-    if frac < 0.20:
-        return 2
-    if frac < 0.45:
-        return 3
-    if frac < 0.75:
-        return 4
-    return 5
-
-
 @dataclass
 class Twists:
     cipher: list[int]  # per character; -1 for non-letters
-    revealed: list[tuple[int, str]]  # (cipher number, plaintext letter)
+    revealed_indices: list[int]  # cell indices pre-filled with their letter
     locked_indices: list[int]
     half_locked: dict[int, str] = field(default_factory=dict)  # index -> "left"|"right"
 
@@ -92,15 +108,16 @@ def simulate_unlock(
     return not still_locked
 
 
-def derive_twists(level_id: int, tier: int, solution: str) -> Twists:
+def hinted_letter_count(letters_present: int, frac: float) -> int:
+    unhinted_frac = UNHINTED_START + (1 - UNHINTED_START) * frac
+    unhinted = min(letters_present, max(1, round(letters_present * unhinted_frac)))
+    return letters_present - unhinted
+
+
+def derive_twists(level_id: int, solution: str, frac: float) -> Twists:
+    tier = tier_for(frac)
     mapping = letter_mapping(level_id, tier)
     cipher = [mapping[ch] if ch.isalpha() else -1 for ch in solution]
-
-    letters_present = sorted({ch for ch in solution if ch.isalpha()})
-    rng = rng_for(level_id, tier, "reveal")
-    # Always leave a majority of the letters unrevealed.
-    reveal_n = min(REVEAL_COUNTS[tier], max(len(letters_present) - 6, 0))
-    revealed = [(mapping[ch], ch) for ch in sorted(rng.sample(letters_present, reveal_n))]
 
     spans = word_spans(solution)
     multi_word_cells = [i for s, e in spans if e - s >= 2 for i in range(s, e)]
@@ -109,6 +126,7 @@ def derive_twists(level_id: int, tier: int, solution: str) -> Twists:
     locked: list[int] = []
     half_locked: dict[int, str] = {}
     while locked_n > 0:
+        placed = False
         for _ in range(MAX_PLACEMENT_ATTEMPTS):
             locked = sorted(locked_rng.sample(multi_word_cells, locked_n))
             half_locked = {}
@@ -120,6 +138,22 @@ def derive_twists(level_id: int, tier: int, solution: str) -> Twists:
                     elif roll < 0.5:
                         half_locked[i] = "right"
             if simulate_unlock(solution, locked, half_locked):
-                return Twists(cipher, revealed, locked, half_locked)
+                placed = True
+                break
+        if placed:
+            break
+        locked, half_locked = [], {}
         locked_n -= 1  # placement kept deadlocking; ease off
-    return Twists(cipher, revealed, [], {})
+
+    letters_present = sorted({ch for ch in solution if ch.isalpha()})
+    rng = rng_for(level_id, tier, "reveal")
+    hinted_n = hinted_letter_count(len(letters_present), frac)
+    locked_set = set(locked)
+    revealed_indices: list[int] = []
+    for ch in sorted(rng.sample(letters_present, hinted_n)):
+        cells = [i for i, c in enumerate(solution) if c == ch and i not in locked_set]
+        if cells:
+            revealed_indices.append(rng.choice(cells))
+    revealed_indices.sort()
+
+    return Twists(cipher, revealed_indices, locked, half_locked)

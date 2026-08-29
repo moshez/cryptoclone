@@ -33,9 +33,12 @@ def main() -> None:
     levels = []
     total = 60
     for level_id in range(1, total + 1):
-        tier = twists.assign_tier(level_id - 1, total)
+        # Compress the whole 1000-level progression into the fixture corpus
+        # so every difficulty phase (hints, locks, half-locks) is exercised.
+        frac = (level_id - 1) / (total - 1)
+        tier = twists.tier_for(frac)
         solution = solution_for(level_id)
-        tw = twists.derive_twists(level_id, tier, solution)
+        tw = twists.derive_twists(level_id, solution, frac)
         levels.append(emit.level_json(level_id, tier, solution, tw, "Fixture Essay"))
     manifest = emit.emit(levels, out_dir)
     print(f"fixtures: {manifest['totalLevels']} levels, dataVersion {manifest['dataVersion']}")

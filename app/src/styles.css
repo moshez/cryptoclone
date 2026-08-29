@@ -192,6 +192,15 @@ body {
   font-family: var(--font-ui);
 }
 
+.cell-revealed {
+  background: #efe9dc;
+  cursor: default;
+}
+
+.cell-revealed .cell-letter {
+  color: var(--muted);
+}
+
 .cell-selected {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -310,10 +319,6 @@ body {
 .key-used {
   background: var(--accent-soft);
   border-color: var(--accent);
-}
-
-.key-revealed {
-  opacity: 0.4;
 }
 
 .key-wide {

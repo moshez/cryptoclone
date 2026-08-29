@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_ERRORS,
   assign,
-  clearSymbol,
-  correctLetter,
+  clearCell,
+  completedLetters,
   initialState,
   isCellLocked,
   isComplete,
@@ -13,14 +13,14 @@ import {
 } from '../src/game';
 import type { Level } from '../src/types';
 
-// "AB BA" with A=1, B=2; A revealed.
+// "AB BA" with A=1, B=2; the A at index 0 revealed.
 function makeLevel(overrides: Partial<Level> = {}): Level {
   return {
     id: 1,
     tier: 1,
     solution: 'AB BA',
     cipher: [1, 2, -1, 2, 1],
-    revealed: [[1, 'A']],
+    revealedIndices: [0],
     lockedIndices: [],
     attribution: { author: 'x', work: 'y', year: 1920, essay: 'z' },
     ...overrides,
@@ -28,25 +28,37 @@ function makeLevel(overrides: Partial<Level> = {}): Level {
 }
 
 describe('assignment', () => {
-  it('prefills revealed mappings', () => {
+  it('prefills revealed cells only, not the rest of their symbol', () => {
     const level = makeLevel();
-    expect(initialState(level).assignments).toEqual({ 1: 'A' });
+    // Index 0 (A) is given; index 4 is also A but starts empty.
+    expect(initialState(level).assignments).toEqual({ 0: 'A' });
   });
 
-  it('propagates by symbol: one assignment covers every cell of the symbol', () => {
+  it('fills exactly the chosen cell: knowing a mapping never auto-fills', () => {
     const level = makeLevel();
-    const { state } = assign(level, initialState(level), 2, 'B');
-    // Both cells with cipher 2 (indices 1 and 3) read from the same entry.
-    expect(state.assignments[2]).toBe('B');
+    const { state } = assign(level, initialState(level), 1, 'B');
+    // Index 3 has the same cipher number but stays empty.
+    expect(state.assignments[1]).toBe('B');
+    expect(state.assignments[3]).toBeUndefined();
+    expect(state.completed).toBe(false);
+  });
+
+  it('completes once every cell is filled by hand', () => {
+    const level = makeLevel();
+    let state = initialState(level);
+    state = assign(level, state, 1, 'B').state;
+    state = assign(level, state, 3, 'B').state;
+    expect(state.completed).toBe(false);
+    state = assign(level, state, 4, 'A').state;
     expect(state.completed).toBe(true);
   });
 
-  it('wrong assignment sticks but counts an error', () => {
+  it('wrong entry sticks in its cell but counts an error', () => {
     const level = makeLevel();
-    const r = assign(level, initialState(level), 2, 'Z');
+    const r = assign(level, initialState(level), 1, 'Z');
     expect(r.wasError).toBe(true);
     expect(r.state.errors).toBe(1);
-    expect(r.state.assignments[2]).toBe('Z');
+    expect(r.state.assignments[1]).toBe('Z');
     expect(r.state.completed).toBe(false);
   });
 
@@ -54,109 +66,141 @@ describe('assignment', () => {
     const level = makeLevel();
     let state = initialState(level);
     for (const letter of ['X', 'Y']) {
-      state = assign(level, state, 2, letter).state;
+      state = assign(level, state, 1, letter).state;
     }
     expect(state.errors).toBe(2);
-    const r = assign(level, state, 2, 'W');
+    const r = assign(level, state, 3, 'W');
     expect(r.didReset).toBe(true);
     expect(r.state.errors).toBe(0);
-    expect(r.state.assignments).toEqual({ 1: 'A' }); // back to revealed only
+    expect(r.state.assignments).toEqual({ 0: 'A' }); // back to revealed only
     expect(MAX_ERRORS).toBe(3);
   });
 
-  it('clear removes a guess but never a revealed mapping', () => {
+  it('revealed cells reject entry and clearing', () => {
     const level = makeLevel();
-    let state = assign(level, initialState(level), 2, 'Z').state;
-    state = clearSymbol(level, state, 2);
-    expect(state.assignments[2]).toBeUndefined();
-    state = clearSymbol(level, state, 1);
-    expect(state.assignments[1]).toBe('A');
+    const state = initialState(level);
+    const r = assign(level, state, 0, 'Z');
+    expect(r.state).toBe(state);
+    expect(r.wasError).toBe(false);
+    expect(clearCell(level, state, 0).assignments[0]).toBe('A');
+  });
+
+  it('clear removes only the one cell', () => {
+    const level = makeLevel();
+    let state = assign(level, initialState(level), 1, 'B').state;
+    state = assign(level, state, 3, 'B').state;
+    state = clearCell(level, state, 1);
+    expect(state.assignments[1]).toBeUndefined();
+    expect(state.assignments[3]).toBe('B');
   });
 
   it('reset returns to the initial presentation', () => {
     const level = makeLevel();
-    const dirty = assign(level, initialState(level), 2, 'Z').state;
+    const dirty = assign(level, initialState(level), 1, 'Z').state;
     expect(resetLevel(level)).toEqual(withUnlocks(level, initialState(level)));
     expect(dirty).not.toEqual(resetLevel(level));
   });
 
-  it('completion requires every symbol correct', () => {
+  it('completion requires every cell correct', () => {
     const level = makeLevel();
-    expect(isComplete(level, { 1: 'A' })).toBe(false);
-    expect(isComplete(level, { 1: 'A', 2: 'B' })).toBe(true);
-    expect(isComplete(level, { 1: 'A', 2: 'X' })).toBe(false);
+    expect(isComplete(level, { 0: 'A', 1: 'B', 3: 'B' })).toBe(false);
+    expect(isComplete(level, { 0: 'A', 1: 'B', 3: 'B', 4: 'A' })).toBe(true);
+    expect(isComplete(level, { 0: 'A', 1: 'B', 3: 'X', 4: 'A' })).toBe(false);
   });
 
-  it('correctLetter reads the solution through the cipher', () => {
+  it('completedLetters tracks letters with every cell filled', () => {
     const level = makeLevel();
-    expect(correctLetter(level, 1)).toBe('A');
-    expect(correctLetter(level, 2)).toBe('B');
+    let state = initialState(level);
+    // A appears at 0 (given) and 4 (empty): not done yet.
+    expect(completedLetters(level, state)).toEqual(new Set());
+    state = assign(level, state, 4, 'A').state;
+    expect(completedLetters(level, state)).toEqual(new Set(['A']));
+    state = assign(level, state, 1, 'B').state;
+    expect(completedLetters(level, state)).toEqual(new Set(['A']));
+    state = assign(level, state, 3, 'B').state;
+    expect(completedLetters(level, state)).toEqual(new Set(['A', 'B']));
   });
 });
 
 describe('locked cells', () => {
-  // "CAB": C=3 locked at index 0; A=1 revealed at index 1.
-  const locked = makeLevel({
-    solution: 'CAB',
-    cipher: [3, 1, 2],
-    revealed: [[1, 'A']],
-    lockedIndices: [0],
-  });
-
-  it('a locked cell is locked until a correct neighbour, then stays open', () => {
+  it('a locked cell opens immediately when its neighbour is a revealed cell', () => {
+    // "CAB": C locked at index 0; the A at index 1 is a given.
+    const locked = makeLevel({
+      solution: 'CAB',
+      cipher: [3, 1, 2],
+      revealedIndices: [1],
+      lockedIndices: [0],
+    });
     const s0 = withUnlocks(locked, initialState(locked));
-    // Neighbour (index 1) is revealed-correct already, so the lock opens
-    // immediately from the start state.
     expect(isCellLocked(locked, s0, 0)).toBe(false);
   });
 
-  it('unlock happens only when the neighbour is correctly filled', () => {
+  it('unlock happens only when the neighbour cell is correctly filled', () => {
     const harder = makeLevel({
       solution: 'CAB',
       cipher: [3, 1, 2],
-      revealed: [],
+      revealedIndices: [],
       lockedIndices: [0],
     });
     let state = withUnlocks(harder, initialState(harder));
     expect(isCellLocked(harder, state, 0)).toBe(true);
     state = assign(harder, state, 1, 'X').state; // wrong neighbour fill
     expect(isCellLocked(harder, state, 0)).toBe(true);
-    state = clearSymbol(harder, state, 1);
+    state = clearCell(harder, state, 1);
     state = assign(harder, state, 1, 'A').state; // correct
     expect(isCellLocked(harder, state, 0)).toBe(false);
   });
 
+  it('filling one cell of a symbol does not unlock next to its other cells', () => {
+    // "ABA C": index 2 (A) neighbours nothing locked, but index 0 (A) does
+    // not become "correct" just because index 2 was filled.
+    const level = makeLevel({
+      solution: 'ABAC',
+      cipher: [1, 2, 1, 3],
+      revealedIndices: [],
+      lockedIndices: [1],
+    });
+    let state = withUnlocks(level, initialState(level));
+    state = assign(level, state, 2, 'A').state; // fills only index 2
+    expect(isCellLocked(level, state, 1)).toBe(false); // index 2 is adjacent
+    const level2 = makeLevel({
+      solution: 'ABCA',
+      cipher: [1, 2, 3, 1],
+      revealedIndices: [],
+      lockedIndices: [1],
+    });
+    let state2 = withUnlocks(level2, initialState(level2));
+    state2 = assign(level2, state2, 3, 'A').state; // far A: not adjacent
+    expect(isCellLocked(level2, state2, 1)).toBe(true);
+  });
+
   it('unlocks cascade along a word', () => {
-    // "DCAB": D and C locked; filling A unlocks C, which (once correct by
-    // propagation? no - C must be *filled* correctly to open D) ...
     const cascade = makeLevel({
       solution: 'DCAB',
       cipher: [4, 3, 1, 2],
-      revealed: [],
+      revealedIndices: [],
       lockedIndices: [0, 1],
     });
     let state = withUnlocks(cascade, initialState(cascade));
-    state = assign(cascade, state, 1, 'A').state;
+    state = assign(cascade, state, 2, 'A').state;
     expect(isCellLocked(cascade, state, 1)).toBe(false); // C's number visible
     expect(isCellLocked(cascade, state, 0)).toBe(true); // D still hidden
-    state = assign(cascade, state, 3, 'C').state;
+    state = assign(cascade, state, 1, 'C').state;
     expect(isCellLocked(cascade, state, 0)).toBe(false);
   });
 
   it('half-locked cells only open from their allowed side', () => {
-    // "BAC" with the middle cell locked from the right only: filling B
-    // (left neighbour) must NOT open it; filling C (right neighbour) must.
     const half = makeLevel({
       solution: 'BAC',
       cipher: [2, 1, 3],
-      revealed: [],
+      revealedIndices: [],
       lockedIndices: [1],
       halfLocked: { '1': 'right' },
     });
     let state = withUnlocks(half, initialState(half));
-    state = assign(half, state, 2, 'B').state;
+    state = assign(half, state, 0, 'B').state;
     expect(isCellLocked(half, state, 1)).toBe(true);
-    state = assign(half, state, 3, 'C').state;
+    state = assign(half, state, 2, 'C').state;
     expect(isCellLocked(half, state, 1)).toBe(false);
   });
 
@@ -166,13 +210,13 @@ describe('locked cells', () => {
     const words = makeLevel({
       solution: 'AB CA',
       cipher: [1, 2, -1, 3, 1],
-      revealed: [],
+      revealedIndices: [],
       lockedIndices: [3],
     });
     let state = withUnlocks(words, initialState(words));
-    state = assign(words, state, 2, 'B').state;
+    state = assign(words, state, 1, 'B').state;
     expect(isCellLocked(words, state, 3)).toBe(true);
-    state = assign(words, state, 1, 'A').state; // index 4, same word
+    state = assign(words, state, 4, 'A').state; // index 4, same word
     expect(isCellLocked(words, state, 3)).toBe(false);
   });
 });

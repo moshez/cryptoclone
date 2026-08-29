@@ -1,7 +1,9 @@
 import type { Level } from './types';
 
 export interface LevelState {
-  /** cipher number -> guessed plaintext letter (applies to every cell of that symbol) */
+  /** cell index -> letter entered in that cell. Entries apply to one cell
+   * only: figuring out a mapping never auto-fills the other cells of that
+   * cipher number — the player types each one. */
   assignments: Record<number, string>;
   errors: number;
   /** locked cell indices whose numbers have been revealed (permanent until reset) */
@@ -13,25 +15,16 @@ export const MAX_ERRORS = 3;
 
 export function initialState(level: Level): LevelState {
   const assignments: Record<number, string> = {};
-  for (const [num, letter] of level.revealed) assignments[num] = letter;
+  for (const i of level.revealedIndices) assignments[i] = level.solution[i];
   return { assignments, errors: 0, unlocked: [], completed: false };
 }
 
-export function correctLetter(level: Level, num: number): string {
-  const i = level.cipher.indexOf(num);
-  return i === -1 ? '' : level.solution[i];
-}
-
-export function symbolsInLevel(level: Level): number[] {
-  return [...new Set(level.cipher.filter((n) => n !== -1))];
+export function isRevealedCell(level: Level, index: number): boolean {
+  return level.revealedIndices.includes(index);
 }
 
 export function isComplete(level: Level, assignments: Record<number, string>): boolean {
-  return symbolsInLevel(level).every((num) => assignments[num] === correctLetter(level, num));
-}
-
-export function revealedNumbers(level: Level): Set<number> {
-  return new Set(level.revealed.map(([num]) => num));
+  return level.cipher.every((num, i) => num === -1 || assignments[i] === level.solution[i]);
 }
 
 export interface AssignResult {
@@ -40,22 +33,24 @@ export interface AssignResult {
   didReset: boolean;
 }
 
-/** Assign `letter` to cipher symbol `num`. A wrong letter still sticks, but
+/** Enter `letter` into the cell at `index`. A wrong letter still sticks, but
  * counts an error; the third error resets the whole puzzle. */
 export function assign(
   level: Level,
   state: LevelState,
-  num: number,
+  index: number,
   letter: string,
 ): AssignResult {
-  if (state.completed) return { state, wasError: false, didReset: false };
-  if (state.assignments[num] === letter) return { state, wasError: false, didReset: false };
-  const wasError = correctLetter(level, num) !== letter;
+  if (state.completed || isRevealedCell(level, index)) {
+    return { state, wasError: false, didReset: false };
+  }
+  if (state.assignments[index] === letter) return { state, wasError: false, didReset: false };
+  const wasError = level.solution[index] !== letter;
   const errors = state.errors + (wasError ? 1 : 0);
   if (errors >= MAX_ERRORS) {
-    return { state: initialState(level), wasError: true, didReset: true };
+    return { state: resetLevel(level), wasError: true, didReset: true };
   }
-  const assignments = { ...state.assignments, [num]: letter };
+  const assignments = { ...state.assignments, [index]: letter };
   const next: LevelState = {
     assignments,
     errors,
@@ -65,10 +60,11 @@ export function assign(
   return { state: withUnlocks(level, next), wasError, didReset: false };
 }
 
-export function clearSymbol(level: Level, state: LevelState, num: number): LevelState {
-  if (state.completed || revealedNumbers(level).has(num)) return state;
+export function clearCell(level: Level, state: LevelState, index: number): LevelState {
+  if (state.completed || isRevealedCell(level, index)) return state;
+  if (state.assignments[index] === undefined) return state;
   const assignments = { ...state.assignments };
-  delete assignments[num];
+  delete assignments[index];
   return { ...state, assignments };
 }
 
@@ -107,7 +103,7 @@ function cellCorrect(
 ): boolean {
   const num = level.cipher[i];
   if (num === -1 || lockedNow.has(i)) return false;
-  return assignments[num] === level.solution[i];
+  return assignments[i] === level.solution[i];
 }
 
 /** Recompute which locked cells are revealed: starting from currently visible
@@ -144,4 +140,17 @@ export function withUnlocks(level: Level, state: LevelState): LevelState {
 
 export function isCellLocked(level: Level, state: LevelState, i: number): boolean {
   return level.lockedIndices.includes(i) && !state.unlocked.includes(i);
+}
+
+/** Letters the player is finished with: every cell needing the letter holds
+ * it. Drives the keyboard's "done" styling. */
+export function completedLetters(level: Level, state: LevelState): Set<string> {
+  const remaining = new Set<string>();
+  const present = new Set<string>();
+  level.cipher.forEach((num, i) => {
+    if (num === -1) return;
+    present.add(level.solution[i]);
+    if (state.assignments[i] !== level.solution[i]) remaining.add(level.solution[i]);
+  });
+  return new Set([...present].filter((ch) => !remaining.has(ch)));
 }

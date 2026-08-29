@@ -3,11 +3,12 @@ import { LevelStore, fetchManifest } from './data';
 import {
   MAX_ERRORS,
   assign,
-  clearSymbol,
+  clearCell,
+  completedLetters,
   initialState,
   isCellLocked,
+  isRevealedCell,
   resetLevel,
-  revealedNumbers,
   withUnlocks,
   type LevelState,
 } from './game';
@@ -50,9 +51,10 @@ export default function App() {
       .then((lv) => {
         if (cancelled) return;
         const saved = progress.current!.levels[lv.id];
+        const st = saved ? withUnlocks(lv, saved) : withUnlocks(lv, initialState(lv));
         setLevel(lv);
-        setState(saved ? withUnlocks(lv, saved) : withUnlocks(lv, initialState(lv)));
-        setSelected(firstOpenCell(lv));
+        setState(st);
+        setSelected(firstOpenCell(lv, st));
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(String(e));
@@ -83,7 +85,8 @@ export default function App() {
       if (!level || !state || selected === null || state.completed) return;
       const num = level.cipher[selected];
       if (num === -1 || isCellLocked(level, state, selected)) return;
-      const result = assign(level, state, num, letter);
+      if (isRevealedCell(level, selected)) return;
+      const result = assign(level, state, selected, letter);
       applyState(result.state);
       if (result.wasError) {
         setShake(true);
@@ -98,15 +101,15 @@ export default function App() {
 
   const onClear = useCallback(() => {
     if (!level || !state || selected === null) return;
-    const num = level.cipher[selected];
-    if (num === -1) return;
-    applyState(clearSymbol(level, state, num));
+    if (level.cipher[selected] === -1) return;
+    applyState(clearCell(level, state, selected));
   }, [level, state, selected, applyState]);
 
   const onReset = useCallback(() => {
     if (!level) return;
-    applyState(resetLevel(level));
-    setSelected(firstOpenCell(level));
+    const fresh = resetLevel(level);
+    applyState(fresh);
+    setSelected(firstOpenCell(level, fresh));
   }, [level, applyState]);
 
   useEffect(() => {
@@ -132,7 +135,10 @@ export default function App() {
     [manifest],
   );
 
-  const usedLetters = useMemo(() => new Set(Object.values(state?.assignments ?? {})), [state]);
+  const doneLetters = useMemo(
+    () => (level && state ? completedLetters(level, state) : new Set<string>()),
+    [level, state],
+  );
 
   if (error) {
     return (
@@ -151,7 +157,9 @@ export default function App() {
 
   const lockedForKeyboard =
     selected !== null &&
-    (level.cipher[selected] === -1 || isCellLocked(level, state, selected));
+    (level.cipher[selected] === -1 ||
+      isCellLocked(level, state, selected) ||
+      isRevealedCell(level, selected));
 
   return (
     <div className={`app${shake ? ' shake' : ''}`}>
@@ -222,16 +230,15 @@ export default function App() {
 
       {!state.completed && (
         <Keyboard
-          usedLetters={usedLetters}
+          doneLetters={doneLetters}
           disabled={selected === null || lockedForKeyboard}
-          revealedLetters={new Set(level.revealed.map(([, l]) => l))}
           onLetter={onLetter}
           onClear={onClear}
           onReset={onReset}
           clearDisabled={
             selected === null ||
             level.cipher[selected] === -1 ||
-            revealedNumbers(level).has(level.cipher[selected])
+            isRevealedCell(level, selected)
           }
         />
       )}
@@ -246,20 +253,22 @@ export default function App() {
   );
 }
 
-function firstOpenCell(level: Level): number | null {
+function firstOpenCell(level: Level, state: LevelState): number | null {
+  let fallback: number | null = null;
   for (let i = 0; i < level.cipher.length; i++) {
-    if (level.cipher[i] !== -1 && !level.lockedIndices.includes(i)) return i;
+    if (level.cipher[i] === -1 || isCellLocked(level, state, i)) continue;
+    if (fallback === null) fallback = i;
+    if (state.assignments[i] === undefined) return i;
   }
-  return null;
+  return fallback;
 }
 
 function nextOpenCell(level: Level, state: LevelState, from: number): number | null {
   const n = level.cipher.length;
   for (let step = 1; step <= n; step++) {
     const i = (from + step) % n;
-    const num = level.cipher[i];
-    if (num === -1 || isCellLocked(level, state, i)) continue;
-    if (state.assignments[num] === undefined) return i;
+    if (level.cipher[i] === -1 || isCellLocked(level, state, i)) continue;
+    if (state.assignments[i] === undefined) return i;
   }
   return from;
 }

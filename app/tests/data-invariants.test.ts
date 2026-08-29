@@ -22,12 +22,12 @@ function loadManifest(dir: string): Manifest {
 }
 
 /** Every locked cell must become reachable when the puzzle is (correctly)
- * filled in: give the sim the full solution as assignments and check no
- * cell stays locked. */
+ * filled in: give the sim the full solution as per-cell assignments and
+ * check no cell stays locked. */
 function allLockedReachable(level: Level): boolean {
   const assignments: Record<number, string> = {};
   level.cipher.forEach((num, i) => {
-    if (num !== -1) assignments[num] = level.solution[i];
+    if (num !== -1) assignments[i] = level.solution[i];
   });
   const state = withUnlocks(level, { ...initialState(level), assignments });
   return level.lockedIndices.every((i) => !isCellLocked(level, state, i));
@@ -107,9 +107,15 @@ for (const dir of CORPORA) {
           });
           expect(byLetter.size, where).toBeGreaterThanOrEqual(12);
 
-          // Revealed pairs must be real (number, letter) pairs of this level.
-          for (const [num, letter] of level.revealed) {
-            expect(byNum.get(num), where).toBe(letter);
+          // Revealed cells are letter cells, never locked, and at most one
+          // per letter: hints are single cells the player extends by hand.
+          const revealedLetters = new Set<string>();
+          for (const i of level.revealedIndices) {
+            expect(level.cipher[i], where).not.toBe(-1);
+            expect(level.lockedIndices, where).not.toContain(i);
+            const letter = level.solution[i];
+            expect(revealedLetters.has(letter), where).toBe(false);
+            revealedLetters.add(letter);
           }
 
           // Locked indices are letter cells inside multi-letter words.

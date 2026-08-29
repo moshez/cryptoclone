@@ -8,7 +8,7 @@ export interface FixtureLevel {
   tier: number;
   cipher: number[];
   solution: string;
-  revealed: [number, string][];
+  revealedIndices: number[];
   lockedIndices: number[];
   halfLocked?: Record<string, 'left' | 'right'>;
   attribution: { author: string; work: string; year: number; essay: string };
@@ -33,18 +33,37 @@ export function fixtureLevel(id: number): FixtureLevel {
   return level;
 }
 
-/** Solve by assigning every distinct unrevealed symbol via the on-screen
- * keyboard: select a cell of the symbol, then press its letter key. */
+/** First letter-cell index that starts empty (not revealed, not locked). */
+export function firstFillableCell(level: FixtureLevel): number {
+  const revealed = new Set(level.revealedIndices);
+  const i = level.cipher.findIndex(
+    (num, idx) => num !== -1 && !revealed.has(idx) && !level.lockedIndices.includes(idx),
+  );
+  if (i === -1) throw new Error(`level ${level.id} has no fillable cell`);
+  return i;
+}
+
+/** Solve by filling every empty cell individually via the on-screen
+ * keyboard: nothing auto-fills, so each cell needs its own entry. Locked
+ * cells are retried in later passes, once a neighbour has opened them. */
 export async function solveLevel(page: Page, level: FixtureLevel): Promise<void> {
-  const revealed = new Set(level.revealed.map(([num]) => num));
-  const done = new Set<number>();
-  for (let i = 0; i < level.cipher.length; i++) {
-    const num = level.cipher[i];
-    if (num === -1 || revealed.has(num) || done.has(num)) continue;
-    if (level.lockedIndices.includes(i)) continue; // will fill via another cell
-    done.add(num);
-    await page.getByTestId(`cell-${i}`).click();
-    await page.getByTestId(`key-${level.solution[i]}`).click();
+  const remaining = new Set<number>();
+  const revealed = new Set(level.revealedIndices);
+  level.cipher.forEach((num, i) => {
+    if (num !== -1 && !revealed.has(i)) remaining.add(i);
+  });
+  while (remaining.size > 0) {
+    let progressed = false;
+    for (const i of [...remaining].sort((a, b) => a - b)) {
+      const cell = page.getByTestId(`cell-${i}`);
+      const cls = (await cell.getAttribute('class')) ?? '';
+      if (cls.includes('cell-locked')) continue; // not reachable yet
+      await cell.click();
+      await page.getByTestId(`key-${level.solution[i]}`).click();
+      remaining.delete(i);
+      progressed = true;
+    }
+    if (!progressed) throw new Error(`level ${level.id}: locked cells never opened`);
   }
 }
 
