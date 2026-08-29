@@ -1,0 +1,341 @@
+:root {
+  --bg: #faf7f2;
+  --ink: #2b2620;
+  /* Dark enough for >=4.5:1 contrast even at cipher-number size (VF-2). */
+  --muted: #665e50;
+  --accent: #9c6b2f;
+  --accent-soft: #f0e2cc;
+  --cell-bg: #ffffff;
+  --cell-border: #d8d0c0;
+  --error: #b3402a;
+  --font: 'Georgia', 'Times New Roman', serif;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+.loading,
+.load-error {
+  margin: 4rem auto;
+  font-size: 1.1rem;
+}
+
+.load-error {
+  color: var(--error);
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.title {
+  font-family: var(--font);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.level-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.level-nav button {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 1.2rem;
+  border: 1px solid var(--cell-border);
+  border-radius: 8px;
+  background: var(--cell-bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.level-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.level-picker {
+  font-size: 0.9rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.level-picker input {
+  width: 3.2rem;
+  min-height: 34px;
+  font-size: 1rem;
+  text-align: center;
+  border: 1px solid var(--cell-border);
+  border-radius: 6px;
+  background: var(--cell-bg);
+  color: var(--ink);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.tier {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.errors {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--error);
+  display: inline-block;
+}
+
+.pip-hit {
+  background: var(--error);
+}
+
+.board {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0.5rem 0 1rem;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.6rem;
+  font-family: var(--font);
+}
+
+.word {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.punct {
+  align-self: flex-end;
+  font-size: 1.2rem;
+  padding-bottom: 1rem;
+  color: var(--muted);
+}
+
+.cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  width: clamp(19px, 5.4vw, 30px);
+  padding: 2px 0 1px;
+  border: 1px solid var(--cell-border);
+  border-radius: 4px;
+  background: var(--cell-bg);
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cell-letter {
+  font-size: 1.05rem;
+  line-height: 1.25rem;
+  min-height: 1.25rem;
+  font-weight: 600;
+}
+
+.cell-num {
+  font-size: 0.6rem;
+  line-height: 0.8rem;
+  min-height: 0.8rem;
+  color: var(--muted);
+  font-family: var(--font-ui);
+}
+
+.cell-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.cell-same {
+  background: var(--accent-soft);
+}
+
+.cell-locked {
+  background: repeating-linear-gradient(45deg, #eee7da, #eee7da 4px, #e2d9c8 4px, #e2d9c8 8px);
+  cursor: default;
+}
+
+.cell-unlocked .cell-num {
+  animation: numreveal 0.45s ease-out;
+}
+
+@keyframes numreveal {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.shake .grid {
+  animation: shake 0.35s;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.attribution {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+}
+
+.attribution-quote {
+  font-family: var(--font);
+  font-size: 1.05rem;
+  font-style: italic;
+  margin: 0 0 0.6rem;
+}
+
+.attribution-source {
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.next-button {
+  margin-top: 0.9rem;
+  min-height: 44px;
+  padding: 0 1.1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-bottom: 0.25rem;
+}
+
+.key-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.key {
+  flex: 1;
+  max-width: 44px;
+  min-width: 0;
+  min-height: 46px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid var(--cell-border);
+  border-radius: 6px;
+  background: var(--cell-bg);
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  padding: 0;
+}
+
+.key:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.key-used {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.key-revealed {
+  opacity: 0.4;
+}
+
+.key-wide {
+  max-width: 60px;
+  flex: 1.4;
+}
+
+.about {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: right;
+  padding-top: 0.4rem;
+}
+
+/* On tall, wide screens a bottom-pinned keyboard leaves a dead zone between
+ * the grid and the keys (VF-1); let the content stack instead and pin only
+ * the footer. */
+@media (min-width: 900px) and (min-height: 700px) {
+  .board {
+    flex: 0 1 auto;
+  }
+  .about {
+    margin-top: auto;
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "cryptoclone-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium-small --project=chromium-large --project=chromium-desktop"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "@types/node": "^22.5.0"
+  }
+}
