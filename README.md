@@ -2,7 +2,10 @@
 
 A substitution-cipher (cryptogram) puzzle game built from Roger Fry's
 *Vision and Design* (1920, Project Gutenberg ebook 54154). Installable,
-offline-capable PWA deployed to GitHub Pages.
+offline-capable PWA deployed to
+[GitHub Pages](https://moshez.github.io/cryptoclone/).
+
+**Play it: <https://moshez.github.io/cryptoclone/>**
 
 ## Layout
 
