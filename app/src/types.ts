@@ -11,8 +11,9 @@ export interface Level {
   /** Per character of `solution`: cipher number 1-26 for letters, -1 otherwise. */
   cipher: number[];
   solution: string;
-  /** Pre-filled [cipherNumber, plaintextLetter] pairs. */
-  revealed: [number, string][];
+  /** Cell indices pre-filled with their solution letter. Other cells of the
+   * same cipher number start empty: the player fills each one by hand. */
+  revealedIndices: number[];
   /** Letter-cell indices whose cipher number starts hidden. */
   lockedIndices: number[];
   /** Optional per-locked-index unlock direction ("left" | "right"); absent means both. */

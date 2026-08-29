@@ -3,25 +3,20 @@ import { fixtureLevels, gotoLevel, type FixtureLevel } from './helpers';
 
 function findLockedFixture(): { level: FixtureLevel; locked: number; neighbour: number } {
   for (const level of fixtureLevels()) {
+    const revealed = new Set(level.revealedIndices);
     for (const locked of level.lockedIndices) {
       const dir = level.halfLocked?.[String(locked)] ?? 'both';
-      for (const neighbour of dir === 'left' ? [locked - 1] : dir === 'right' ? [locked + 1] : [locked - 1, locked + 1]) {
+      const allowed =
+        dir === 'left' ? [locked - 1] : dir === 'right' ? [locked + 1] : [locked - 1, locked + 1];
+      // A revealed cell on an allowed side is correct from the start and
+      // would auto-unlock the cell; skip those.
+      if (allowed.some((j) => revealed.has(j))) continue;
+      for (const neighbour of allowed) {
         if (
           level.cipher[neighbour] !== undefined &&
           level.cipher[neighbour] !== -1 &&
           !level.lockedIndices.includes(neighbour) &&
-          // The neighbour's symbol must not already be revealed, or the
-          // cell starts unlocked.
-          !level.revealed.some(([num]) => num === level.cipher[neighbour]) &&
-          // No OTHER neighbour may auto-unlock it first.
-          ![locked - 1, locked + 1]
-            .filter((j) => j !== neighbour)
-            .some(
-              (j) =>
-                level.cipher[j] !== undefined &&
-                level.cipher[j] !== -1 &&
-                level.revealed.some(([num]) => num === level.cipher[j]),
-            )
+          !revealed.has(neighbour)
         ) {
           return { level, locked, neighbour };
         }
@@ -46,8 +41,7 @@ test('a locked cell shows no number until its neighbour is correctly filled', as
 
   // Fill the neighbour with a WRONG letter first: still locked.
   const correct = level.solution[neighbour];
-  const revealedLetters = new Set(level.revealed.map(([, l]) => l));
-  const wrong = 'QJXZK'.split('').find((l) => l !== correct && !revealedLetters.has(l))!;
+  const wrong = 'QJXZK'.split('').find((l) => l !== correct)!;
   await page.getByTestId(`cell-${neighbour}`).click();
   await page.getByTestId(`key-${wrong}`).click();
   await expect(lockedCell.locator('.cell-num')).toHaveText('');

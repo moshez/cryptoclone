@@ -1,6 +1,7 @@
 """Pipeline entry points.
 
   python -m pipeline.cli corpus         # full run: fetch -> extract -> /data
+  python -m pipeline.cli retwist        # re-derive presentation over /data
   python -m pipeline.cli dump-windows   # list windows awaiting extraction
   python -m pipeline.cli curate FILE    # import offline editorial review
 """
@@ -66,12 +67,11 @@ def _build_levels(min_len: int, max_len: int) -> list[dict]:
     # Shorter sentences make earlier (easier) levels.
     accepted.sort(key=lambda pair: (len(pair[0]), pair[0]))
     levels = []
-    total = len(accepted)
     for pos, (sentence, essay_title) in enumerate(accepted):
         level_id = pos + 1
-        tier = twists.assign_tier(pos, total)
+        tier = twists.assign_tier(pos)
         solution = sentence.upper()
-        tw = twists.derive_twists(level_id, tier, solution)
+        tw = twists.derive_twists(level_id, solution, twists.progress_frac(pos))
         levels.append(emit.level_json(level_id, tier, solution, tw, essay_title))
     return levels
 
@@ -85,6 +85,31 @@ def cmd_corpus(args) -> int:
     print(
         f"emitted {manifest['totalLevels']} levels in "
         f"{len(manifest['batches'])} batches, dataVersion {manifest['dataVersion']}"
+    )
+    return 0
+
+
+def cmd_retwist(args) -> int:
+    """Re-derive every level's presentation (tier, reveals, locks) from the
+    already-emitted corpus, leaving the sentences untouched. Offline: needs
+    neither the source text nor the extraction cache."""
+    manifest = json.loads((DATA_DIR / "manifest.json").read_text(encoding="utf-8"))
+    old_levels: list[dict] = []
+    for batch in manifest["batches"]:
+        body = json.loads((DATA_DIR / batch["file"]).read_text(encoding="utf-8"))
+        old_levels.extend(body["levels"])
+    levels = []
+    for pos, old in enumerate(old_levels):
+        level_id = old["id"]
+        tier = twists.assign_tier(pos)
+        tw = twists.derive_twists(level_id, old["solution"], twists.progress_frac(pos))
+        levels.append(
+            emit.level_json(level_id, tier, old["solution"], tw, old["attribution"]["essay"])
+        )
+    new_manifest = emit.emit(levels, DATA_DIR)
+    print(
+        f"retwisted {new_manifest['totalLevels']} levels, "
+        f"dataVersion {new_manifest['dataVersion']}"
     )
     return 0
 
@@ -141,6 +166,9 @@ def main() -> int:
     p_corpus.add_argument("--min-len", type=int, default=filters.MIN_LEN)
     p_corpus.add_argument("--max-len", type=int, default=filters.MAX_LEN)
     p_corpus.set_defaults(func=cmd_corpus)
+
+    p_retwist = sub.add_parser("retwist")
+    p_retwist.set_defaults(func=cmd_retwist)
 
     p_dump = sub.add_parser("dump-windows")
     p_dump.add_argument("--min-len", type=int, default=filters.MIN_LEN)

@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { isCellLocked, type LevelState } from '../game';
+import { isCellLocked, isRevealedCell, type LevelState } from '../game';
 import { wordSpans } from '../game';
 import type { Level } from '../types';
 
@@ -63,13 +63,15 @@ function Cell({ level, state, index, selected, onSelect }: Props & { index: numb
   const num = level.cipher[index];
   const locked = isCellLocked(level, state, index);
   const justUnlocked = state.unlocked.includes(index);
-  const guess = locked ? '' : (state.assignments[num] ?? '');
+  const revealed = isRevealedCell(level, index);
+  const guess = locked ? '' : (state.assignments[index] ?? '');
   const isSelected = selected === index;
   const sameSymbol = !locked && selected !== null && level.cipher[selected] === num;
   const classes = [
     'cell',
     locked ? 'cell-locked' : '',
     justUnlocked ? 'cell-unlocked' : '',
+    revealed ? 'cell-revealed' : '',
     isSelected ? 'cell-selected' : '',
     sameSymbol && !isSelected ? 'cell-same' : '',
   ]

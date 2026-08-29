@@ -3,6 +3,9 @@ __pycache__/
 pipeline/cache/
 node_modules/
 app/dist/
+# vitest's decoy build.outDir; pagesPlugin's closeBundle writes here when
+# the vitest server shuts down, so the folder is generated junk.
+app/dummy-non-existing-folder/
 e2e/test-results/
 e2e/playwright-report/
 e2e/.serve/

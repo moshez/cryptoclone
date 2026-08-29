@@ -77,17 +77,36 @@ async function main() {
       await page.getByTestId('grid').waitFor();
       await freeze();
     };
+    // Fill every empty cell individually; nothing auto-fills. Locked cells
+    // are retried in later passes once a neighbour has opened them.
     const solve = async (level) => {
-      const revealed = new Set(level.revealed.map(([num]) => num));
-      const done = new Set();
-      for (let i = 0; i < level.cipher.length; i++) {
-        const num = level.cipher[i];
-        if (num === -1 || revealed.has(num) || done.has(num)) continue;
-        if (level.lockedIndices.includes(i)) continue;
-        done.add(num);
-        await page.getByTestId(`cell-${i}`).click();
-        await page.getByTestId(`key-${level.solution[i]}`).click();
+      const remaining = new Set();
+      const revealed = new Set(level.revealedIndices);
+      level.cipher.forEach((num, i) => {
+        if (num !== -1 && !revealed.has(i)) remaining.add(i);
+      });
+      while (remaining.size > 0) {
+        let progressed = false;
+        for (const i of [...remaining].sort((a, b) => a - b)) {
+          const cell = page.getByTestId(`cell-${i}`);
+          const cls = (await cell.getAttribute('class')) ?? '';
+          if (cls.includes('cell-locked')) continue;
+          await cell.click();
+          await page.getByTestId(`key-${level.solution[i]}`).click();
+          remaining.delete(i);
+          progressed = true;
+        }
+        if (!progressed) throw new Error(`level ${level.id}: locked cells never opened`);
       }
+    };
+    const fillableCells = (level) => {
+      const revealed = new Set(level.revealedIndices);
+      return level.cipher
+        .map((num, i) => i)
+        .filter(
+          (i) =>
+            level.cipher[i] !== -1 && !revealed.has(i) && !level.lockedIndices.includes(i),
+        );
     };
 
     await page.goto('http://localhost:4188/cryptoclone/');
@@ -96,10 +115,12 @@ async function main() {
     await shot('level1-fresh');
 
     // Mid-solve with one wrong guess so an error pip is lit.
-    await page.getByTestId('cell-0').click();
-    await page.getByTestId('key-T').click();
-    await page.getByTestId('cell-4').click();
-    await page.getByTestId('key-J').click();
+    const [fillA, fillB] = fillableCells(level1);
+    await page.getByTestId(`cell-${fillA}`).click();
+    await page.getByTestId(`key-${level1.solution[fillA]}`).click();
+    await page.getByTestId(`cell-${fillB}`).click();
+    const wrong = 'QJXZK'.split('').find((l) => l !== level1.solution[fillB]);
+    await page.getByTestId(`key-${wrong}`).click();
     await shot('level1-midsolve');
 
     // Solved: attribution card.

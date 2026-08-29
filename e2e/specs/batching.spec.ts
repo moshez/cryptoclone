@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fixtureLevel, gotoLevel, solveLevel } from './helpers';
+import { firstFillableCell, fixtureLevel, gotoLevel, solveLevel } from './helpers';
 
 test('exactly one batch request on entry; exactly two after the prefetch window', async ({
   page,
@@ -14,8 +14,7 @@ test('exactly one batch request on entry; exactly two after the prefetch window'
 
   // Play a few moves on level 1, then hop around the front of the batch.
   const level = fixtureLevel(1);
-  const revealed = new Set(level.revealed.map(([num]) => num));
-  const i = level.cipher.findIndex((num) => num !== -1 && !revealed.has(num));
+  const i = firstFillableCell(level);
   await page.getByTestId(`cell-${i}`).click();
   await page.getByTestId(`key-${level.solution[i]}`).click();
   await gotoLevel(page, 3);

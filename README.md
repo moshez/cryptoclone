@@ -42,12 +42,20 @@ the initial committed corpus was selected. The
 `Regenerate corpus` workflow (manual dispatch) reruns the pipeline with the
 API key from secrets and opens a PR so regeneration is reviewable.
 
-Difficulty is presentation, not sentence choice: each level's tier (1–5)
-sets how many cipher→plaintext mappings start revealed and how many cells
-are locked (number hidden until an adjacent cell in the same word is
-correctly filled; some tier-5 cells are half-locked and only open from one
-side). Twists derive deterministically from `(levelId, tier)`, and a
-simulation proves every locked cell reachable before emission.
+Difficulty is presentation, not sentence choice. Hints are per-cell: a
+hinted letter has exactly one of its cells pre-filled, and the player
+fills that letter's remaining cells by hand — nothing is ever auto-filled,
+even once a mapping is known, so early play is a known-plaintext attack.
+The progression ramps slowly across a 1000-level horizon: the first levels
+hint all but one letter, the hint count decays by roughly one letter every
+~60 levels, and by the horizon nothing is hinted. Tiers (1–5) mark fifths
+of that horizon and add locked cells from tier 3 (number hidden until an
+adjacent cell in the same word is correctly filled; some tier-5 cells are
+half-locked and only open from one side). Twists derive deterministically
+from the level id and its position along the horizon, and a simulation
+proves every locked cell reachable before emission.
+`python -m pipeline.cli retwist` re-derives the presentation over the
+already-emitted corpus without re-running extraction.
 
 ## Development
 

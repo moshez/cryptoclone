@@ -21,7 +21,7 @@ def level_json(
         "tier": tier,
         "cipher": twists.cipher,
         "solution": solution,
-        "revealed": [[num, letter] for num, letter in twists.revealed],
+        "revealedIndices": twists.revealed_indices,
         "lockedIndices": twists.locked_indices,
         "attribution": {
             "author": "Roger Fry",
