@@ -66,37 +66,30 @@ test('a revealed cell hints the mapping but leaves its other cells open', async 
   await expect(page.getByTestId('errors').locator('.pip-hit')).toHaveCount(0);
 });
 
-test('clearing a cell clears only that cell; reset restores the start', async ({
-  page,
-}) => {
+test('a filled cell is final; only reset restores the start', async ({ page }) => {
   const level = fixtureLevel(1);
   await page.goto('./');
   await expect(page.getByTestId('grid')).toBeVisible();
 
   const revealed = new Set(level.revealedIndices);
-  const counts = new Map<number, number[]>();
-  level.cipher.forEach((num, i) => {
-    if (num !== -1 && !revealed.has(i)) {
-      counts.set(num, [...(counts.get(num) ?? []), i]);
-    }
-  });
-  const [, indices] = [...counts.entries()].find(([, idx]) => idx.length >= 2)!;
-  const [a, b] = indices;
+  const a = level.cipher.findIndex((num, i) => num !== -1 && !revealed.has(i));
   const letter = level.solution[a];
+  const other = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').find((l) => l !== letter)!;
 
   await page.getByTestId(`cell-${a}`).click();
   await page.getByTestId(`key-${letter}`).click();
-  await page.getByTestId(`cell-${b}`).click();
-  await page.getByTestId(`key-${letter}`).click();
+  await expect(page.getByTestId(`cell-${a}`).locator('.cell-letter')).toHaveText(letter);
 
+  // Re-selecting the filled cell disables the keyboard: no changing it.
   await page.getByTestId(`cell-${a}`).click();
-  await page.getByTestId('key-clear').click();
-  await expect(page.getByTestId(`cell-${a}`).locator('.cell-letter')).toHaveText('');
-  // The sibling cell keeps its letter.
-  await expect(page.getByTestId(`cell-${b}`).locator('.cell-letter')).toHaveText(letter);
+  await expect(page.getByTestId(`key-${other}`)).toBeDisabled();
+  // Typing on the physical keyboard is rejected too.
+  await page.keyboard.press(other);
+  await expect(page.getByTestId(`cell-${a}`).locator('.cell-letter')).toHaveText(letter);
+  await expect(page.getByTestId('errors').locator('.pip-hit')).toHaveCount(0);
 
   await page.getByTestId('key-reset').click();
-  await expect(page.getByTestId(`cell-${b}`).locator('.cell-letter')).toHaveText('');
+  await expect(page.getByTestId(`cell-${a}`).locator('.cell-letter')).toHaveText('');
   // Revealed cells survive the reset.
   const r = level.revealedIndices[0];
   await expect(page.getByTestId(`cell-${r}`).locator('.cell-letter')).toHaveText(
@@ -123,6 +116,8 @@ test('three wrong letters reset the puzzle', async ({ page }) => {
     const pips = page.getByTestId('errors').locator('.pip-hit');
     // After the third error the puzzle resets and the pips go back to 0.
     await expect(pips).toHaveCount(n < 2 ? n + 1 : 0);
+    // The wrong letter never sticks: once the flash fades the cell is empty.
+    await expect(page.getByTestId(`cell-${i}`).locator('.cell-letter')).toHaveText('');
+    await expect(page.getByTestId(`cell-${i}`)).not.toHaveClass(/cell-error/);
   }
-  await expect(page.getByTestId(`cell-${i}`).locator('.cell-letter')).toHaveText('');
 });

@@ -66,8 +66,21 @@ def _build_levels(min_len: int, max_len: int) -> list[dict]:
 
     # Shorter sentences make earlier (easier) levels.
     accepted.sort(key=lambda pair: (len(pair[0]), pair[0]))
+    return derive_levels(accepted)
+
+
+def derive_levels(accepted: list[tuple[str, str]]) -> list[dict]:
+    """Turn (sentence, essay) pairs into the full run of levels.
+
+    The progression is tuned across a HORIZON of 1000 levels, and the corpus
+    yields far fewer distinct sentences than that, so sentences cycle: each
+    level id derives its own cipher, hints, and locks, so a repeated
+    sentence at a later level plays as a fresh, harder puzzle."""
+    if not accepted:
+        return []
     levels = []
-    for pos, (sentence, essay_title) in enumerate(accepted):
+    for pos in range(max(twists.HORIZON, len(accepted))):
+        sentence, essay_title = accepted[pos % len(accepted)]
         level_id = pos + 1
         tier = twists.assign_tier(pos)
         solution = sentence.upper()
@@ -90,23 +103,24 @@ def cmd_corpus(args) -> int:
 
 
 def cmd_retwist(args) -> int:
-    """Re-derive every level's presentation (tier, reveals, locks) from the
-    already-emitted corpus, leaving the sentences untouched. Offline: needs
-    neither the source text nor the extraction cache."""
+    """Re-derive the whole corpus presentation (level count, tiers, reveals,
+    locks) from the already-emitted corpus, leaving the sentences untouched.
+    Offline: needs neither the source text nor the extraction cache."""
     manifest = json.loads((DATA_DIR / "manifest.json").read_text(encoding="utf-8"))
     old_levels: list[dict] = []
     for batch in manifest["batches"]:
         body = json.loads((DATA_DIR / batch["file"]).read_text(encoding="utf-8"))
         old_levels.extend(body["levels"])
-    levels = []
-    for pos, old in enumerate(old_levels):
-        level_id = old["id"]
-        tier = twists.assign_tier(pos)
-        tw = twists.derive_twists(level_id, old["solution"], twists.progress_frac(pos))
-        levels.append(
-            emit.level_json(level_id, tier, old["solution"], tw, old["attribution"]["essay"])
-        )
-    new_manifest = emit.emit(levels, DATA_DIR)
+    # Distinct sentences in first-appearance order: the emitted corpus cycles
+    # them, so this recovers the accepted list `corpus` started from.
+    accepted: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for old in old_levels:
+        if old["solution"] in seen:
+            continue
+        seen.add(old["solution"])
+        accepted.append((old["solution"], old["attribution"]["essay"]))
+    new_manifest = emit.emit(derive_levels(accepted), DATA_DIR)
     print(
         f"retwisted {new_manifest['totalLevels']} levels, "
         f"dataVersion {new_manifest['dataVersion']}"

@@ -33,39 +33,38 @@ export interface AssignResult {
   didReset: boolean;
 }
 
-/** Enter `letter` into the cell at `index`. A wrong letter still sticks, but
- * counts an error; the third error resets the whole puzzle. */
+/** Enter `letter` into the cell at `index`. A filled cell (revealed or
+ * already entered) is final and rejects entry. A wrong letter never sticks:
+ * it counts an error and the fill is undone immediately; the third error
+ * resets the whole puzzle. */
 export function assign(
   level: Level,
   state: LevelState,
   index: number,
   letter: string,
 ): AssignResult {
-  if (state.completed || isRevealedCell(level, index)) {
+  if (
+    state.completed ||
+    isRevealedCell(level, index) ||
+    state.assignments[index] !== undefined
+  ) {
     return { state, wasError: false, didReset: false };
   }
-  if (state.assignments[index] === letter) return { state, wasError: false, didReset: false };
-  const wasError = level.solution[index] !== letter;
-  const errors = state.errors + (wasError ? 1 : 0);
-  if (errors >= MAX_ERRORS) {
-    return { state: resetLevel(level), wasError: true, didReset: true };
+  if (level.solution[index] !== letter) {
+    const errors = state.errors + 1;
+    if (errors >= MAX_ERRORS) {
+      return { state: resetLevel(level), wasError: true, didReset: true };
+    }
+    return { state: { ...state, errors }, wasError: true, didReset: false };
   }
   const assignments = { ...state.assignments, [index]: letter };
   const next: LevelState = {
     assignments,
-    errors,
+    errors: state.errors,
     unlocked: state.unlocked,
     completed: isComplete(level, assignments),
   };
-  return { state: withUnlocks(level, next), wasError, didReset: false };
-}
-
-export function clearCell(level: Level, state: LevelState, index: number): LevelState {
-  if (state.completed || isRevealedCell(level, index)) return state;
-  if (state.assignments[index] === undefined) return state;
-  const assignments = { ...state.assignments };
-  delete assignments[index];
-  return { ...state, assignments };
+  return { state: withUnlocks(level, next), wasError: false, didReset: false };
 }
 
 export function resetLevel(level: Level): LevelState {

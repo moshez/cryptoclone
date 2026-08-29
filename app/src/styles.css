@@ -212,6 +212,15 @@ body {
   background: var(--accent-soft);
 }
 
+.cell-error {
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, var(--cell-bg));
+}
+
+.cell-error .cell-letter {
+  color: var(--error);
+}
+
 .cell-locked {
   background: repeating-linear-gradient(45deg, #eee7da, #eee7da 4px, #e2d9c8 4px, #e2d9c8 8px);
   cursor: default;

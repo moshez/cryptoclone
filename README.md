@@ -46,7 +46,10 @@ Difficulty is presentation, not sentence choice. Hints are per-cell: a
 hinted letter has exactly one of its cells pre-filled, and the player
 fills that letter's remaining cells by hand — nothing is ever auto-filled,
 even once a mapping is known, so early play is a known-plaintext attack.
-The progression ramps slowly across a 1000-level horizon: the first levels
+The progression ramps slowly across a 1000-level horizon, and the corpus
+always emits all 1000 levels: the accepted sentences cycle across the
+horizon, each repeat re-ciphered and re-hinted for its level id, so a
+returning sentence plays as a fresh, harder puzzle. The first levels
 hint all but one letter, the hint count decays by roughly one letter every
 ~60 levels, and by the horizon nothing is hinted. Tiers (1–5) mark fifths
 of that horizon and add locked cells from tier 3 (number hidden until an
