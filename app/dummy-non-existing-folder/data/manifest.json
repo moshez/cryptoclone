@@ -1,0 +1,25 @@
+{
+ "dataVersion": "62f84853a97c",
+ "totalLevels": 72,
+ "batchSize": 50,
+ "batches": [
+  {
+   "index": 0,
+   "file": "batch-000.96215f.json",
+   "sha256": "96215f3510881909e76ce8be64ae7510bc793f09707798adc906b52ed8e4f02c",
+   "levelIds": [
+    1,
+    50
+   ]
+  },
+  {
+   "index": 1,
+   "file": "batch-001.e9e12b.json",
+   "sha256": "e9e12b82e848421578a642349724beb2d4ba41eff9acbf21af26255882d4c269",
+   "levelIds": [
+    51,
+    72
+   ]
+  }
+ ]
+}

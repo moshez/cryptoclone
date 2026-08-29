@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: app
+      - name: Build
+        run: npm run build
+        working-directory: app
+        env:
+          BUILD_ID: ${{ github.sha }}
+          BASE_PATH: /${{ github.event.repository.name }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post-deploy smoke check
+        run: |
+          set -euo pipefail
+          url="${{ needs.deploy.outputs.page_url || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}"
+          echo "Checking $url"
+          html=$(curl --fail --silent --show-error "$url")
+          echo "$html" | grep -Eo 'assets/index-[A-Za-z0-9_-]+\.js' | head -1
+          echo "$html" | grep -q 'assets/index-' || { echo "no hashed asset reference in HTML"; exit 1; }
+          curl --fail --silent --show-error "${url}data/manifest.json" | head -c 200
+          echo
+          curl --fail --silent --show-error "${url}sw.js" | grep -q "BUILD_ID = '${{ github.sha }}'" \
+            || { echo "deployed sw.js does not carry this commit's BUILD_ID"; exit 1; }
