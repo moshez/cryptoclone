@@ -1,0 +1,9 @@
+{
+  "name": "cryptoclone-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vision-review": "node capture.mjs && node review.mjs",
+    "capture": "node capture.mjs"
+  }
+}

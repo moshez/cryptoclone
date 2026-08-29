@@ -1,7 +1,8 @@
 :root {
   --bg: #faf7f2;
   --ink: #2b2620;
-  --muted: #8a8172;
+  /* Dark enough for >=4.5:1 contrast even at cipher-number size (VF-2). */
+  --muted: #665e50;
   --accent: #9c6b2f;
   --accent-soft: #f0e2cc;
   --cell-bg: #ffffff;
@@ -325,4 +326,16 @@ body {
   color: var(--muted);
   text-align: right;
   padding-top: 0.4rem;
+}
+
+/* On tall, wide screens a bottom-pinned keyboard leaves a dead zone between
+ * the grid and the keys (VF-1); let the content stack instead and pin only
+ * the footer. */
+@media (min-width: 900px) and (min-height: 700px) {
+  .board {
+    flex: 0 1 auto;
+  }
+  .about {
+    margin-top: auto;
+  }
 }

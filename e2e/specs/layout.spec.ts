@@ -66,6 +66,65 @@ test('words never break across lines', async ({ page }) => {
   expect(misaligned).toBe(0);
 });
 
+// VF-1: on desktop-sized screens the keyboard must sit near the grid, not
+// pinned to the bottom of a stretched column with a dead zone between.
+test('no dead zone between grid and keyboard on desktop', async ({ page }) => {
+  const viewport = page.viewportSize()!;
+  test.skip(viewport.width < 900 || viewport.height < 700, 'desktop-only finding');
+  await page.goto('./');
+  await expect(page.getByTestId('grid')).toBeVisible();
+  const grid = await box(page.getByTestId('grid'));
+  const keyboard = await box(page.getByTestId('keyboard'));
+  expect(keyboard.y - (grid.y + grid.height)).toBeLessThanOrEqual(240);
+});
+
+function relativeLuminance(rgb: [number, number, number]): number {
+  const [r, g, b] = rgb.map((v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(fg: [number, number, number], bg: [number, number, number]): number {
+  const [l1, l2] = [relativeLuminance(fg), relativeLuminance(bg)].sort((a, b) => b - a);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
+function parseRgb(css: string): [number, number, number] {
+  const m = css.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)!;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+// VF-2: cipher numbers and meta text are small; their computed contrast
+// against their backgrounds must clear WCAG 4.5:1.
+test('small text has at least 4.5:1 contrast', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.getByTestId('grid')).toBeVisible();
+  const samples = await page.evaluate(() => {
+    const bgOf = (el: Element): string => {
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        const bg = getComputedStyle(node).backgroundColor;
+        if (bg && !bg.includes('rgba(0, 0, 0, 0)')) return bg;
+      }
+      return 'rgb(255, 255, 255)';
+    };
+    const pick = (selector: string) => {
+      const el = document.querySelector(selector)!;
+      return { fg: getComputedStyle(el).color, bg: bgOf(el) };
+    };
+    return [
+      pick('.cell:not(.cell-selected):not(.cell-same) .cell-num'),
+      pick('.cell-selected .cell-num'),
+      pick('.tier'),
+      pick('.about'),
+    ];
+  });
+  for (const { fg, bg } of samples) {
+    expect(contrast(parseRgb(fg), parseRgb(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
 test('attribution card text is not clipped', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByTestId('grid')).toBeVisible();
