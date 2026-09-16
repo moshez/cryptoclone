@@ -21,7 +21,9 @@ export function fixtureManifest() {
 }
 
 export function fixtureLevels(): FixtureLevel[] {
-  const files = readdirSync(fixtureDir).filter((f) => f.startsWith('batch-')).sort();
+  const files = readdirSync(fixtureDir)
+    .filter((f) => f.startsWith('batch-'))
+    .sort();
   return files.flatMap(
     (f) => JSON.parse(readFileSync(join(fixtureDir, f), 'utf-8')).levels as FixtureLevel[],
   );
@@ -73,11 +75,31 @@ export async function gotoLevel(page: Page, id: number): Promise<void> {
   await input.blur();
 }
 
-/** Wait until the service worker for this page's scope is active. */
+/** Wait until the service worker is activated AND controls this page.
+ *
+ * This must run in `page.evaluate`, which awaits the promise: an async
+ * predicate handed to `waitForFunction` returns a Promise, which is truthy,
+ * so such a wait resolves on the first poll without waiting for anything.
+ * `reg.active` alone is also too early: it is set while the worker is still
+ * activating, before `clients.claim()` has run, and a navigation made offline
+ * before the page is controlled goes straight to the network and fails. */
 export async function waitForServiceWorker(page: Page): Promise<void> {
-  await page.waitForFunction(async () => {
-    if (!('serviceWorker' in navigator)) return false;
-    const reg = await navigator.serviceWorker.getRegistration();
-    return !!reg?.active;
+  await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    const worker = reg.active;
+    if (!worker) throw new Error('serviceWorker.ready resolved without an active worker');
+    await new Promise<void>((ok, fail) => {
+      const check = () => {
+        if (worker.state === 'activated') ok();
+        else if (worker.state === 'redundant')
+          fail(new Error('service worker became redundant'));
+      };
+      worker.addEventListener('statechange', check);
+      check();
+    });
+    await new Promise<void>((ok) => {
+      navigator.serviceWorker.addEventListener('controllerchange', () => ok(), { once: true });
+      if (navigator.serviceWorker.controller) ok();
+    });
   });
 }
