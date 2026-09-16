@@ -15,6 +15,7 @@ import type { Level, Manifest } from './types';
 import { Grid } from './components/Grid';
 import { Keyboard } from './components/Keyboard';
 import { AttributionCard } from './components/AttributionCard';
+import { LevelList } from './components/LevelList';
 
 declare const __BUILD_ID__: string;
 
@@ -25,6 +26,9 @@ export default function App() {
   const [level, setLevel] = useState<Level | null>(null);
   const [state, setState] = useState<LevelState | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  /** The puzzle, or the level map that sits above it. Never persisted:
+   * a fresh load always lands on the current puzzle. */
+  const [view, setView] = useState<'puzzle' | 'levels'>('puzzle');
   const [shake, setShake] = useState(false);
   /** Transient wrong entry: shown in its cell for a moment, never stored. */
   const [errorFlash, setErrorFlash] = useState<{ index: number; letter: string } | null>(null);
@@ -114,13 +118,14 @@ export default function App() {
   }, [level, applyState]);
 
   useEffect(() => {
+    if (view !== 'puzzle') return;
     const handler = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (/^[a-zA-Z]$/.test(e.key)) onLetter(e.key.toUpperCase());
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onLetter]);
+  }, [onLetter, view]);
 
   const gotoLevel = useCallback(
     (id: number) => {
@@ -167,6 +172,16 @@ export default function App() {
         <h1 className="title">Vision &amp; Cipher</h1>
         <nav className="level-nav">
           <button
+            type="button"
+            className="levels-toggle"
+            data-testid="open-levels"
+            aria-label="Level list"
+            aria-pressed={view === 'levels'}
+            onClick={() => setView(view === 'levels' ? 'puzzle' : 'levels')}
+          >
+            Levels
+          </button>
+          <button
             aria-label="Previous level"
             data-testid="prev-level"
             disabled={levelId <= 1}
@@ -210,26 +225,39 @@ export default function App() {
         </div>
       </header>
 
-      <main className="board">
-        <Grid
-          level={level}
-          state={state}
-          selected={selected}
-          errorFlash={errorFlash}
-          onSelect={(i) => {
-            if (level.cipher[i] !== -1 && !isCellLocked(level, state, i)) setSelected(i);
+      {view === 'levels' ? (
+        <LevelList
+          totalLevels={manifest.totalLevels}
+          currentLevel={levelId}
+          progress={progress.current?.levels ?? {}}
+          onPick={(id) => {
+            gotoLevel(id);
+            setView('puzzle');
           }}
+          onClose={() => setView('puzzle')}
         />
-        {state.completed && (
-          <AttributionCard
-            attribution={level.attribution}
-            solution={level.solution}
-            onNext={levelId < manifest.totalLevels ? () => gotoLevel(levelId + 1) : undefined}
+      ) : (
+        <main className="board">
+          <Grid
+            level={level}
+            state={state}
+            selected={selected}
+            errorFlash={errorFlash}
+            onSelect={(i) => {
+              if (level.cipher[i] !== -1 && !isCellLocked(level, state, i)) setSelected(i);
+            }}
           />
-        )}
-      </main>
+          {state.completed && (
+            <AttributionCard
+              attribution={level.attribution}
+              solution={level.solution}
+              onNext={levelId < manifest.totalLevels ? () => gotoLevel(levelId + 1) : undefined}
+            />
+          )}
+        </main>
+      )}
 
-      {!state.completed && (
+      {view === 'puzzle' && !state.completed && (
         <Keyboard
           doneLetters={doneLetters}
           disabled={selected === null || lockedForKeyboard}
