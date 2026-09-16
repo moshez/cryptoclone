@@ -433,25 +433,37 @@ body {
   outline-offset: -1px;
 }
 
-.levels-footer {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--cell-border);
-  text-align: center;
-}
-
+/* Subscribe call to action: a full-width box in the accent colours right
+ * under the map header, so it is on screen the moment the map opens. The
+ * text keeps --link (>=4.5:1 on --bg and --accent-soft). */
 .subscribe-link {
-  display: inline-block;
-  padding: 0.6rem 0.5rem;
-  font-size: 0.95rem;
+  display: block;
+  margin: 0.85rem 0 0.25rem;
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
   color: var(--link);
+  background: var(--accent-soft);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
   text-decoration: underline;
   text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* The arrow is an inline-block so the underline stops at the words. */
+.subscribe-link::after {
+  content: ' \2197';
+  display: inline-block;
+  margin-left: 0.15em;
 }
 
 .subscribe-link:hover,
 .subscribe-link:focus-visible {
   color: var(--ink);
+  border-color: var(--ink);
 }
 
 .about {
