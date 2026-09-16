@@ -14,8 +14,9 @@ interface Props {
 }
 
 /** The level map: one tile per level, solved ones marked, the current one
- * outlined. It is also where the game talks about itself (subscribe link),
- * so the puzzle screen stays free of anything that is not the puzzle. */
+ * outlined. It is also where the game talks about itself (subscribe link,
+ * shown as a call to action above the tiles), so the puzzle screen stays
+ * free of anything that is not the puzzle. */
 export function LevelList({ totalLevels, currentLevel, progress, onPick, onClose }: Props) {
   const sections: [number, number][] = [];
   for (let start = 1; start <= totalLevels; start += SECTION) {
@@ -42,6 +43,19 @@ export function LevelList({ totalLevels, currentLevel, progress, onPick, onClose
           Back to puzzle
         </button>
       </div>
+
+      {/* The call to action sits right under the header, above the tiles, so
+       * it is inside the first screen of the map on a phone rather than a
+       * footer nobody scrolls a thousand tiles to reach. */}
+      <a
+        className="subscribe-link"
+        data-testid="subscribe-link"
+        href={SUBSCRIBE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Subscribe to hear about more games or updates to games
+      </a>
 
       {sections.map(([start, end]) => (
         <div className="levels-section" key={start}>
@@ -74,18 +88,6 @@ export function LevelList({ totalLevels, currentLevel, progress, onPick, onClose
           </div>
         </div>
       ))}
-
-      <footer className="levels-footer">
-        <a
-          className="subscribe-link"
-          data-testid="subscribe-link"
-          href={SUBSCRIBE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Subscribe to hear about more games or updates to games
-        </a>
-      </footer>
     </section>
   );
 }

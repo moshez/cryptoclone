@@ -40,6 +40,9 @@ test('subscribe link lives on the level list, not the puzzle', async ({ page, co
   await page.getByTestId('open-levels').click();
   const link = page.getByTestId('subscribe-link');
   await expect(link).toBeVisible();
+  // Above the fold: the whole call to action is on screen the moment the
+  // map opens, without scrolling, on every configured viewport.
+  await expect(link).toBeInViewport({ ratio: 1 });
   await expect(link).toHaveText(SUBSCRIBE_TEXT);
   await expect(link).toHaveAttribute('href', SUBSCRIBE_URL);
   await expect(link).toHaveAttribute('target', '_blank');
